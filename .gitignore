@@ -1,3 +1,4 @@
 /target
 logs/plc.log
 .DS_Store
+plc.log

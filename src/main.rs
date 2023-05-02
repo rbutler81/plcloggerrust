@@ -89,7 +89,7 @@ fn logger_config(log_pattern: &str, appconfig: &AppConfig) -> LogConfig {
     let trigger_size = byte_unit::n_mb_bytes!(appconfig.log_max_size_mb) as u64;
     let trigger = Box::new(SizeTrigger::new(trigger_size));
 
-    let roller_pattern = "logs/history/plclog_{}.gz";
+    let roller_pattern = "history/plclog_{}.gz";
     let roller_count = appconfig.log_history_to_keep;
     let roller_base = 1;
     let roller = Box::new(
@@ -103,7 +103,7 @@ fn logger_config(log_pattern: &str, appconfig: &AppConfig) -> LogConfig {
 
     let step_ap = RollingFileAppender::builder()
         .encoder(Box::new(PatternEncoder::new(log_line_pattern)))
-        .build("logs/plc.log", compound_policy)
+        .build("plc.log", compound_policy)
         .unwrap();
 
     let stdout = ConsoleAppender::builder()
@@ -126,8 +126,8 @@ fn logger_config(log_pattern: &str, appconfig: &AppConfig) -> LogConfig {
 
 fn main() {
     // constants
-    const VERSION: &str = env!("CARGO_PKG_VERSION");
-    const LOG_PATTERN: &str = "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}";
+    const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+    const LOG_PATTERN: &str = "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {m}{n}";
     const LOG_PATTERN_PLC: &str = "{m}{n}";
     
     // read config.toml file
@@ -139,10 +139,11 @@ fn main() {
     // setup logger
     let log_handle = logger_setup(&app_config, LOG_PATTERN);
 
+    // start application
+    info!("Rusty PLC Logger v{APP_VERSION} - Starting Up...");
 
     for _ in 0..5 {
         sleep(time::Duration::from_millis(1000));
-        info!("{VERSION}");
         error!("first log error");
         info!("first log info");
         log_handle.set_config(logger_config(LOG_PATTERN_PLC, &app_config));
