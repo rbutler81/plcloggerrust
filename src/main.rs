@@ -129,12 +129,14 @@ fn main() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     const LOG_PATTERN: &str = "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}";
     const LOG_PATTERN_PLC: &str = "{m}{n}";
-
+    
+    // read config.toml file
     let app_config = app_config().unwrap_or_else(|err| {
         println!("{err}");
         process::exit(1);
     });
-
+    
+    // setup logger
     let log_handle = logger_setup(&app_config, LOG_PATTERN);
 
 
