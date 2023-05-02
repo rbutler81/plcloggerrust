@@ -1,0 +1,10 @@
+[package]
+name = "plclogger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+log4rs = { version = "1.2.0", features = ["gzip", "background_rotation"] }
+config = "0.13.1"
+byte-unit = "4.0.19"
