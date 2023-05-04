@@ -1,6 +1,6 @@
-# application setting
+# application settings
 listening_port = 4557
 
 # log settings
 log_max_size_mb = 20
-log_history_to_keep = 10
+log_history_to_keep = 20

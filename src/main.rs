@@ -1,5 +1,10 @@
 use config::{Config, ConfigError};
 use core::time;
+use std::net::UdpSocket;
+use std::str::from_utf8;
+use std::sync::Mutex;
+use std::sync::mpsc::channel;
+use std::thread;
 use log::LevelFilter;
 use log::{error, info};
 use log4rs::append::console::ConsoleAppender;
@@ -12,7 +17,7 @@ use log4rs::config::{Appender, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::Config as LogConfig;
 use log4rs::{self, Handle};
-use std::{process, thread::sleep};
+use std::{process, thread::sleep, thread::spawn};
 
 struct AppConfig {
     listening_port: u16,
@@ -127,14 +132,15 @@ fn logger_config(log_pattern: &str, appconfig: &AppConfig) -> LogConfig {
 fn main() {
     // constants
     const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-    const LOG_PATTERN: &str = "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {m}{n}";
+    const LOG_PATTERN: &str = "{d(%Y-%m-%d %H:%M:%S%.6f)} | {({l}):5.5} | {m}{n}";
     const LOG_PATTERN_PLC: &str = "{m}{n}";
     
     // read config.toml file
-    let app_config = app_config().unwrap_or_else(|err| {
-        println!("{err}");
-        process::exit(1);
-    });
+    let app_config = app_config()
+        .unwrap_or_else(|err| {
+            println!("{err}");
+            process::exit(1);
+        });
     
     // setup logger
     let log_handle = logger_setup(&app_config, LOG_PATTERN);
@@ -142,12 +148,66 @@ fn main() {
     // start application
     info!("Rusty PLC Logger v{APP_VERSION} - Starting Up...");
 
-    for _ in 0..5 {
+    // setup channel to be used to communicate across threads
+    let (tx, rx) = channel();
+
+    // udp listener
+    let listening_port = app_config.listening_port;
+
+    // spawn a thread to handle the UDP socket
+    let address_with_port = String::from("0.0.0.0:") + &listening_port.to_string();
+
+    thread::spawn(move || {
+        let socket = UdpSocket::bind(address_with_port)
+                           .unwrap_or_else(|err| {
+                                error!("{err}");
+                                error!("Check if another instance of the logger is running, or if another application is using port {}", &listening_port);
+                                process::exit(1);
+                           });
+    info!("Starting UDP Listener on port: {}", &listening_port);
+
+    loop {
+        let tx_thread = tx.clone();
+        let mut buf = [0u8; 1500];
+        info!("Cloning socket...");
+        let sock = socket.try_clone()
+            .unwrap_or_else(|err| {
+                    error!("{err}");
+                    process::exit(1);
+                });
+
+        info!("Waiting for packet...");
+        match sock.recv_from(&mut buf) {
+            Ok((amt, src)) => {
+                thread::spawn(move || {
+                    info!("Handling connection from {}", src);
+                    let buf = &mut buf[..amt];
+                    let string_data = from_utf8(buf).unwrap().to_string();
+                    tx_thread.send(string_data)
+                        .unwrap_or_else(|err| {
+                            error!("{err}");
+                        });
+                
+                });
+            },
+            Err(e) => {
+                error!("{}", e);
+            }
+        }
+    }
+    });
+
+    for r in rx {
+        let log_handle = logger_setup(&app_config, LOG_PATTERN_PLC);
+        info!("{r}");
+    }
+
+    /* for _ in 0..5 {
         sleep(time::Duration::from_millis(1000));
         error!("first log error");
         info!("first log info");
         log_handle.set_config(logger_config(LOG_PATTERN_PLC, &app_config));
-    }
+    } */
 
     log_handle.set_config(logger_config(LOG_PATTERN, &app_config));
     info!("last log");
